@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import requests
 import threading
 import time
@@ -21,7 +21,7 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 # Submission interval (seconds)
 SUBMIT_INTERVAL = 6 * 60 * 60  # 6 hours
 
-# Declare SERVICE_URL globally
+# Global service URL (detected at runtime)
 SERVICE_URL = None
 
 
@@ -31,7 +31,7 @@ def send_telegram_message(text):
         try:
             url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
             payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text}
-            requests.post(url, data=payload)
+            requests.post(url, data=payload, timeout=10)
         except Exception as e:
             print("⚠️ Failed to send Telegram message:", e)
 
@@ -40,7 +40,7 @@ def submit_form():
     """Submits the Google Form"""
     try:
         data = {FIELD_ID: USERNAME}
-        response = requests.post(FORM_URL, data=data)
+        response = requests.post(FORM_URL, data=data, timeout=10)
         if response.ok:
             msg = "✅ Form submitted successfully"
             print(msg)
@@ -68,7 +68,7 @@ def keep_alive():
     while True:
         if SERVICE_URL:
             try:
-                requests.get(SERVICE_URL)
+                requests.get(SERVICE_URL, timeout=10)
                 msg = "Pinged self to stay alive ✅"
                 print(msg)
                 send_telegram_message(msg)
@@ -77,6 +77,16 @@ def keep_alive():
                 print(msg)
                 send_telegram_message(msg)
         time.sleep(10 * 60)
+
+
+@app.before_first_request
+def detect_service_url():
+    """Detect SERVICE_URL dynamically from first incoming request"""
+    global SERVICE_URL
+    if not SERVICE_URL:
+        SERVICE_URL = request.host_url.rstrip("/")
+        print(f"🔍 Detected SERVICE_URL: {SERVICE_URL}")
+        send_telegram_message(f"🔍 Detected SERVICE_URL: {SERVICE_URL}")
 
 
 @app.route("/")
@@ -92,9 +102,6 @@ def submit_endpoint():
 
 
 if __name__ == "__main__":
-    # Set SERVICE_URL manually after deployment
-    SERVICE_URL = "https://your-render-service.onrender.com"
-
     # Start background threads
     threading.Thread(target=periodic_submit, daemon=True).start()
     threading.Thread(target=keep_alive, daemon=True).start()

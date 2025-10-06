@@ -33,7 +33,7 @@ def send_telegram(message: str):
 
 
 # Submission interval (seconds)
-SUBMIT_INTERVAL = 3* 0 * 60  # every 6 hours
+SUBMIT_INTERVAL = 1 * 60 * 60  # every 6 hours
 
 
 def submit_form():
